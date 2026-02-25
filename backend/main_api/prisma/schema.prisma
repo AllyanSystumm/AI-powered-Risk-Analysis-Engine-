@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  id              String   @id @default(uuid())
+  orderIdString   String   @unique
+  totalAmount     Float
+  itemCount       Int
+  method          String
+  createdAt       DateTime @default(now())
+
+  userProfileId   String
+  userProfile     UserProfile @relation(fields: [userProfileId], references: [id])
+
+  addressId       String
+  address         Address @relation(fields: [addressId], references: [id])
+
+  ipInfoId        String
+  ipInfo          IpInfo @relation(fields: [ipInfoId], references: [id])
+
+  riskAssessment  RiskAssessment?
+}
+
+model UserProfile {
+  id        String   @id @default(uuid())
+  userId    String
+  fullName  String   @default("")
+  email     String
+  phone     String
+  country   String
+  createdAt DateTime
+  orders    Order[]
+}
+
+model Address {
+  id         String   @id @default(uuid())
+  street     String
+  city       String
+  state      String
+  postalCode String
+  country    String
+  orders     Order[]
+}
+
+model IpInfo {
+  id         String   @id @default(uuid())
+  ipAddress  String
+  ipCountry  String
+  ipRegion   String
+  ipCity     String
+  latitude   Float
+  longitude  Float
+  orders     Order[]
+}
+
+model RiskAssessment {
+  id                    String   @id @default(uuid())
+  orderId               String   @unique
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  riskScore             Float
+  recommendedAction     String
+  verificationSuggestions String[]
+  summary               String
+  riskFlags             RiskFlag[]
+}
+
+model RiskFlag {
+  id               String   @id @default(uuid())
+  riskAssessmentId String
+  riskAssessment   RiskAssessment @relation(fields: [riskAssessmentId], references: [id], onDelete: Cascade)
+  ruleId           Int
+  ruleName         String
+  triggered        Boolean
+  confidence       Float
+  explanation      String
+}
