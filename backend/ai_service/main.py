@@ -186,15 +186,9 @@ Use this data to evaluate the rules below. These are FACTS — do not hallucinat
     order_data_json = payload.model_dump_json(exclude={"historical_context"})
 
     prompt = f"""
-You are an enterprise-grade Fraud Detection and Risk Scoring assistant AND an expert phone number parser and validator that understands international numbering rules (E.164 + national formats).
+You are an enterprise-grade Fraud Detection and Risk Scoring assistant.
 
 Your job is to analyze incoming e-commerce orders and produce a structured, precise JSON result.
-
-### PHONE NUMBER PARSING AND VALIDATION
-When processing the customer's phone number alongside the provided delivery country '{user_country}', do the following:
-1. COUNTRY CODE AUTO-INSERT: Automatically prepend the correct country calling code based on the country (e.g., US -> +1, India -> +91, Pakistan -> +92, UK -> +44, Australia -> +61, Brazil -> +55, China -> +86, Saudi Arabia -> +966, South Africa -> +27, Nigeria -> +234, Bangladesh -> +880). All formatted numbers must begin with "+<CountryCode>".
-2. ALWAYS USE E.164 STANDARD: The total length must never exceed 15 digits total (country code + national number).
-3. FORMAT VALIDATION: Format valid numbers exactly as +<CountryCode><NationalNumber> (without extra spaces or punctuation) and return this in the `formatted_phone` JSON field.
 
 ### INPUT DATA
 {order_data_json}
@@ -209,8 +203,7 @@ Your output MUST be valid JSON only, NOTHING else.
 Provide exactly these fields:
 {{
 "order_id": "<string>",
-"formatted_phone": "<string>",
-"risk_score": <number 0-35>,
+"risk_score": <number 0-30>,
 "risk_flags": [
 {{
 "rule_id": <number>,
@@ -292,22 +285,17 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
    - If they match, or if the Delivery Address doesn't explicitly mention a conflicting city:
      - Rule #8 triggered: false. Say: "City implicitly matches or no contradictory city found in the delivery address."
 
-9. Incorrect Phone Number Format: +5
-   - Evaluate the phone number using international numbering rules after the country code is prefixed:
-     * Pakistan (+92): 10 digits after +92 starting with 3. If +92 isn't present, raw input should be 11 digits.
-     * India (+91): Exactly 10 digits after +91 starting with 6,7,8,9.
-     * US/Canada (+1): 10 digits after +1 (3-digit area + 7-digit subscriber).
-     * UK (+44): Up to 10 digits after +44; mobile typically begins with 7.
-     * Australia (+61): 9 digits after +61, mobile typically starts with 4.
-     * Brazil (+55): Area code (2 digits) + subscriber (8-9 digits).
-     * China (+86): 11 digits after +86, first 3 between 130-199.
-     * Saudi Arabia (+966): Usually 9 digits.
-     * South Africa (+27): Typically 9 digits.
-     * Nigeria (+234): Typically 10 digits.
-     * Bangladesh (+880): Typically 10 digits, mobile starts with 1.
-     * Others (Argentina, Mexico, Germany, France, Italy, Japan, etc.): Use standard local numbering lengths.
-   - IF the number doesn't match these format rules (wrong digit count, wrong starting digit): triggered: true (+5 pts). Explanation MUST label it as "Risk Rules Analysis -> incorrect phone number".
-   - IF valid: triggered: false.
+9. Incorrect Phone Number Pattern: +5
+   - You MUST analyze the EXACT structure of `{payload.user_profile.get('phone', '')}` compared to the requested `{user_country}`. Ensure the correct country code is applied and the string matches the length rules explicitly:
+   - Specific formats to enforce:
+     - Pakistan (PK): IF country code '+92' is automatically present -> MUST be exactly 10 digits post-prefix and start with '3' (e.g., +92 301 2345678). If '+92' is NOT present -> MUST be exact 11 digits starting with '03' (e.g., 0301 2345678).
+     - India (IN): After '+91', must be exactly 10 digits and start with 6, 7, 8, or 9.
+     - United States/Canada (US/CA): After '+1', must be exactly 10 digits (Area code + 7 digits). Area code cannot start with 0 or 1.
+     - United Kingdom (GB): After '+44', mobile MUST start with 7 and be exactly 10 digits long (e.g., +44 7911 123456).
+     - Australia (AU): After '+61', mobile MUST start with 4 and be exactly 9 digits long (e.g., +61 412 345 678).
+   - For ALL OTHER COUNTRIES globally: Use your internal LLM parameter knowledge to verify the phone format length and prefix matching that country.
+   - IF the phone number FAILS this pattern rule for length or starting digits: Rule #9 triggered: true (+5 pts). Provide an explanation of the expected pattern versus the received string.
+   - IF the phone matches perfectly or looks perfectly compliant globally: Rule #9 triggered: false.
 
 ### RISK BAND RULES (NEVER deviate):
 - If total risk score is EXACTLY 0 -> recommended_action MUST be "ship" (No Risk)
@@ -315,7 +303,7 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
 
 ### CRITICAL INSTRUCTIONS:
 1. You MUST include ALL 9 rules in the `risk_flags` array.
-2. The `risk_score` MUST be the exact sum of weights of triggered rules (each triggered risk rule = +5), but CAPPED at a maximum of 35.
+2. The `risk_score` MUST be the exact sum of weights of triggered rules (each triggered risk rule = +5), but CAPPED at a maximum of 30.
 3. If 0 risk rules triggered -> risk_score = 0, action = "ship".
 4. NEVER hallucinate or invent data. Only use what is in the DATABASE CONTEXT and INPUT DATA.
 5. For Rule 3 (Hurry Order Booking): if minutes_since_last_order is null, it is a FIRST ORDER — do NOT trigger.
