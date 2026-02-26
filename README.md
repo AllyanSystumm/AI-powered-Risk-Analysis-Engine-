@@ -57,7 +57,7 @@ The RiskGuard system evaluates each incoming order and assigns a **Risk Score** 
 |---|----------------|----------|-------------------|
 | **1** | Contact Specificity | +0 | Confirms uniqueness bounds of user email and phone (Passed Check) |
 | **2** | Geo-Verify Delivery | +0 | Validates the city string against the LLMs geographic models (Passed Check) |
-| **3** | Hurry / Rapid Booking | +5 | Flags rapid successive orders from the identical email addressing bots |
+| **3** | Hurry / Rapid Booking | +5 | Flags rapid successive orders from the identical email addressing bots. **Triggers if ANY of the following are met**: 1) `< 10 mins` since their last order, 2) `> 2 orders` in the last 24 hours, or 3) `> 14 orders` in the last 7 days. |
 | **4** | Cross-Account Addresses | +5 | Flags identical physical delivery addresses booked across diverse user accounts |
 | **5** | Postal Code Integrity | +5 | **Integrated with ZipcodeStack**. The system queries the ZipcodeStack API with the provided postal code and country to retrieve the true official city and state. The system then prompts the Llama 3 model to cross-reference ZipcodeStack’s official geographic data against the exact city/state strings the customer manually entered in their order to determine if the postal code is mismatched, stolen, or entirely invalid for that region. |
 | **6** | Stolen Identity (Email) | +5 | A single email is logged across entirely unrelated identities |
