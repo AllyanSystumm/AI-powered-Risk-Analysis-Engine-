@@ -285,17 +285,26 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
    - If they match, or if the Delivery Address doesn't explicitly mention a conflicting city:
      - Rule #8 triggered: false. Say: "City implicitly matches or no contradictory city found in the delivery address."
 
-9. Incorrect Phone Number Pattern: +5
-   - You MUST analyze the EXACT structure of `{payload.user_profile.get('phone', '')}` compared to the requested `{user_country}`. Ensure the correct country code is applied and the string matches the length rules explicitly:
-   - Specific formats to enforce:
-     - Pakistan (PK): IF country code '+92' is automatically present -> MUST be exactly 10 digits post-prefix and start with '3' (e.g., +92 301 2345678). If '+92' is NOT present -> MUST be exact 11 digits starting with '03' (e.g., 0301 2345678).
-     - India (IN): After '+91', must be exactly 10 digits and start with 6, 7, 8, or 9.
-     - United States/Canada (US/CA): After '+1', must be exactly 10 digits (Area code + 7 digits). Area code cannot start with 0 or 1.
-     - United Kingdom (GB): After '+44', mobile MUST start with 7 and be exactly 10 digits long (e.g., +44 7911 123456).
-     - Australia (AU): After '+61', mobile MUST start with 4 and be exactly 9 digits long (e.g., +61 412 345 678).
-   - For ALL OTHER COUNTRIES globally: Use your internal LLM parameter knowledge to verify the phone format length and prefix matching that country.
-   - IF the phone number FAILS this pattern rule for length or starting digits: Rule #9 triggered: true (+5 pts). Provide an explanation of the expected pattern versus the received string.
-   - IF the phone matches perfectly or looks perfectly compliant globally: Rule #9 triggered: false.
+9. Incorrect Phone Number Pattern: +5 
+   - You are an expert phone number parser and validator that understands international numbering rules (E.164 + national formats).
+   - Use the `user_country` ({user_country}) and the provided phone number.
+   - COUNTRY CODE AUTO-INSERT: Mentally prepend the correct country calling code based on the selected country (e.g., US -> +1, India -> +91, Pakistan -> +92, UK -> +44, Australia -> +61, Brazil -> +55).
+   - FORMAT VALIDATION: Validate the rest of the number after the country code based on national formats.
+     - Pakistan (+92): Mobile must be 10 digits after +92 starting with 3. If +92 isn't present, raw input should be 11 digits with leading zero.
+     - India (+91): Exactly 10 digits after +91, starting with 6,7,8,9.
+     - US/Canada (+1): 10 digits after +1 (3-digit area + 7-digit subscriber).
+     - UK (+44): Up to 10 digits after +44; mobile typically begins with 7.
+     - Australia (+61): 9 digits after +61, mobile typically starts with 4.
+     - Brazil (+55): Area code (2 digits) + subscriber (8-9 digits).
+     - China (+86): 11 digits after +86, first three 130-199.
+     - Saudi Arabia (+966): Usually 9 digits after +966.
+     - South Africa (+27): Typically 9 digits.
+     - Nigeria (+234): Typically 10 digits.
+     - Bangladesh (+880): Typically 10 digits, mobile starts with 1.
+     - Others (Argentina +54, Mexico +52, Germany +49, France +33, Italy +39, Japan +81): Standard local numbering length.
+   - The full number must never exceed 15 digits total.
+   - IF the phone number format is WRONG (incorrect digits, wrong starting digit, invalid structure) -> triggered: true (+5 pts). State: "Number does not match the valid phone number pattern for {user_country}."
+   - IF the phone number format is VALID -> triggered: false. Optional: provide the E.164 formatted number in your explanation.
 
 ### RISK BAND RULES (NEVER deviate):
 - If total risk score is EXACTLY 0 -> recommended_action MUST be "ship" (No Risk)
