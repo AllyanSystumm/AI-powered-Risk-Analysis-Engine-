@@ -83,9 +83,9 @@ export default function Dashboard() {
           <p className="text-slate-500">AI-powered risk analysis and automated actioning</p>
         </div>
         <div className="flex gap-3">
-          <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
-            <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Processed</span>
-            <span className="text-2xl font-bold text-slate-800">{totalOrders}</span>
+          <div className="bg-blue-50 border border-blue-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
+            <span className="text-xs text-blue-700 uppercase font-bold tracking-wider">Processed</span>
+            <span className="text-2xl font-bold text-blue-800">{totalOrders}</span>
           </div>
           <div className="bg-green-50 border border-green-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
             <span className="text-xs text-green-700 uppercase font-bold tracking-wider">Total Ship</span>
