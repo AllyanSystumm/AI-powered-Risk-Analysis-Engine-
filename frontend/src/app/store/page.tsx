@@ -157,7 +157,10 @@ export default function Storefront() {
                         </h1>
                         <p className="text-slate-600">Complete your simulated purchase below to test the RiskGuard AI engine.</p>
                     </div>
-                    <a href="/" className="px-4 py-2 bg-white hover:bg-slate-100 rounded-lg transition-colors border border-slate-300">
+                    <a href="/" className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm shadow-blue-500/20 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
                         Back to Dashboard
                     </a>
                 </div>
