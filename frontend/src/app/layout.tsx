@@ -57,13 +57,6 @@ export default function RootLayout({
             {/* Top Status Bar within Main Area */}
             <header className="h-12 flex items-center justify-between mb-2 px-1">
               <h1 className="text-xl font-bold text-slate-800">AI-Risk Analyzer Engine</h1>
-
-              <div className="flex items-center gap-4">
-                <div className="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full flex items-center gap-2 border border-slate-200 shadow-sm">
-                  <span className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></span>
-                  System Monitoring Active
-                </div>
-              </div>
             </header>
 
             <main className="flex-1 w-full min-h-0">
