@@ -87,13 +87,13 @@ export default function Dashboard() {
             <span className="text-xs text-blue-700 uppercase font-bold tracking-wider">Processed</span>
             <span className="text-2xl font-bold text-blue-800">{totalOrders}</span>
           </div>
-          <div className="bg-green-50 border border-green-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
-            <span className="text-xs text-green-700 uppercase font-bold tracking-wider">Total Ship</span>
-            <span className="text-2xl font-bold text-green-800">{totalShip}</span>
+          <div className="bg-green-400 border border-green-500 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
+            <span className="text-xs text-green-900 uppercase font-bold tracking-wider">Total Ship</span>
+            <span className="text-2xl font-bold text-green-950">{totalShip}</span>
           </div>
-          <div className="bg-yellow-50 border border-yellow-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
-            <span className="text-xs text-yellow-700 uppercase font-bold tracking-wider">Total Manual Review</span>
-            <span className="text-2xl font-bold text-yellow-800">{totalManualReview}</span>
+          <div className="bg-yellow-400 border border-yellow-500 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
+            <span className="text-xs text-yellow-900 uppercase font-bold tracking-wider">Total Manual Review</span>
+            <span className="text-2xl font-bold text-yellow-950">{totalManualReview}</span>
           </div>
         </div>
       </div>
