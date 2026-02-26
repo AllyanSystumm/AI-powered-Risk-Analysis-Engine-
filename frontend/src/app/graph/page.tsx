@@ -98,13 +98,13 @@ export default function GraphAnalysis() {
                             <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">Overall Risk Distribution</h2>
                             <div className="flex-1 min-h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
+                                    <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
                                         <Pie
                                             data={chartData}
                                             cx="50%"
                                             cy="50%"
-                                            innerRadius={80}
-                                            outerRadius={120}
+                                            innerRadius={65}
+                                            outerRadius={100}
                                             paddingAngle={5}
                                             dataKey="count"
                                             label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
