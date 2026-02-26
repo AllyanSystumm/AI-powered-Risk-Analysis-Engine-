@@ -142,6 +142,5 @@ Visit `http://localhost:3000` to visualize the system.
 - **`/store` Live Simulator** — Place dummy orders using the React-Phone input block to actively view the engine dissect user footprints live.
 
 <img width="1822" height="996" alt="Screenshot from 2026-02-26 12-20-20" src="https://github.com/user-attachments/assets/b0d6c808-7bba-491f-8b99-131a46aa0c2e" />
-## 📈 Graph Analysis
 <img width="1822" height="996" alt="Screenshot from 2026-02-26 12-21-32" src="https://github.com/user-attachments/assets/3bdae724-f2bc-4dbf-be75-5d39e8d42adc" />
 
