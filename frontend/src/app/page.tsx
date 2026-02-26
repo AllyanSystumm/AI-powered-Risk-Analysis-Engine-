@@ -203,8 +203,8 @@ export default function Dashboard() {
                       </div>
                     </td>
                     <td className="py-3 px-2">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold border ${recommended.toLowerCase() === 'manual_review' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                        'bg-green-50 text-green-700 border-green-200'
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-bold border shadow-sm ${recommended.toLowerCase() === 'manual_review' ? 'bg-yellow-400 text-yellow-900 border-yellow-500' :
+                        'bg-green-400 text-green-900 border-green-500'
                         }`}>
                         {recommended}
                       </span>
