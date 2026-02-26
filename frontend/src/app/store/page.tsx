@@ -201,7 +201,8 @@ export default function Storefront() {
                                         placeholder="Enter phone number"
                                         value={formData.phone}
                                         onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
-                                        defaultCountry="PK"
+                                        defaultCountry={formData.country as any}
+                                        country={formData.country as any}
                                         className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus-within:ring-2 focus-within:ring-blue-500 focus-within:outline-none focus:outline-none"
                                         style={{ "--PhoneInputCountrySelectArrow-color": "#64748b" } as React.CSSProperties}
                                     />
@@ -262,7 +263,29 @@ export default function Storefront() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm mb-1 text-slate-600">Country <span className="text-red-500">*</span></label>
-                                    <input required type="text" name="country" value={formData.country} onChange={handleChange} className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="PK or Pakistan" />
+                                    <select required name="country" value={formData.country} onChange={handleChange} className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                        <option value="US">United States</option>
+                                        <option value="CA">Canada</option>
+                                        <option value="GB">United Kingdom</option>
+                                        <option value="IN">India</option>
+                                        <option value="PK">Pakistan</option>
+                                        <option value="CN">China</option>
+                                        <option value="AU">Australia</option>
+                                        <option value="BR">Brazil</option>
+                                        <option value="RU">Russia</option>
+                                        <option value="ZA">South Africa</option>
+                                        <option value="MX">Mexico</option>
+                                        <option value="BD">Bangladesh</option>
+                                        <option value="EG">Egypt</option>
+                                        <option value="NG">Nigeria</option>
+                                        <option value="AR">Argentina</option>
+                                        <option value="SA">Saudi Arabia</option>
+                                        <option value="TR">Turkey</option>
+                                        <option value="IT">Italy</option>
+                                        <option value="FR">France</option>
+                                        <option value="DE">Germany</option>
+                                        <option value="JP">Japan</option>
+                                    </select>
                                 </div>
                                 <div>
                                     <label className="block text-sm mb-1 text-slate-600">Postal Code <span className="text-red-500">*</span></label>
