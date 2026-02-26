@@ -140,3 +140,8 @@ Visit `http://localhost:3000` to visualize the system.
 
 - **`/` Root Dashboard** — Complete overview table, Filter bounds, Visual progress colors. Click `Details` on an order line item to view the exact Llama 3 logic and triggers.
 - **`/store` Live Simulator** — Place dummy orders using the React-Phone input block to actively view the engine dissect user footprints live.
+<img width="1816" height="987" alt="Screenshot from 2026-02-26 11-19-23" src="https://github.com/user-attachments/assets/58df8516-3546-44f7-9422-b9c86e7399e8" />
+<img width="1816" height="987" alt="Screenshot from 2026-02-26 11-20-34" src="https://github.com/user-attachments/assets/e7b337ad-a195-4887-9bb2-fb2854f98d3d" />
+<img width="760" height="807" alt="Screenshot from 2026-02-26 11-21-58" src="https://github.com/user-attachments/assets/28e5621c-34aa-491e-89c7-811716de30e8" />
+
+
