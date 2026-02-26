@@ -101,25 +101,30 @@ export default function Dashboard() {
       <div className="border border-slate-200 bg-white overflow-hidden flex flex-col flex-1 min-h-0">
         <div className="border-b border-slate-200 bg-slate-50 p-2 flex gap-1">
           {[
-            { label: "All", value: "all" },
+            { label: "All", value: "all", color: "blue" },
             { label: "Risk detection(1-30 → manual review)", value: "medium risk", color: "yellow" },
             { label: "No Risk detection (0 → ship)", value: "low risk", color: "green" }
           ].map(tab => {
             const isActive = activeTab === tab.value;
-            let colorClasses = "text-slate-500 hover:text-slate-900 hover:bg-slate-200";
+            let colorClasses = "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-100 shadow-sm border border-slate-200";
 
-            if (isActive) {
-              if (tab.color === "red") colorClasses = "bg-red-50 text-red-700 shadow-sm ring-1 ring-red-200";
-              else if (tab.color === "yellow") colorClasses = "bg-yellow-50 text-yellow-700 shadow-sm ring-1 ring-yellow-200";
-              else if (tab.color === "green") colorClasses = "bg-green-50 text-green-700 shadow-sm ring-1 ring-green-200";
-              else colorClasses = "bg-white text-indigo-700 shadow-sm ring-1 ring-slate-200";
+            if (tab.color === "yellow") {
+              colorClasses = isActive
+                ? "bg-yellow-400 text-yellow-900 shadow-md border border-yellow-500"
+                : "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300";
+            } else if (tab.color === "green") {
+              colorClasses = isActive
+                ? "bg-green-400 text-green-900 shadow-md border border-green-500"
+                : "bg-green-100 text-green-800 hover:bg-green-200 border border-green-300";
+            } else if (isActive) {
+              colorClasses = "bg-blue-600 text-white shadow-md border border-blue-700";
             }
 
             return (
               <button
                 key={tab.value}
                 onClick={() => setActiveTab(tab.value)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${colorClasses}`}
+                className={`px-5 py-2.5 rounded-lg text-base font-bold transition-all duration-200 ${colorClasses}`}
               >
                 {tab.label}
               </button>
