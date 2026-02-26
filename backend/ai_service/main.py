@@ -14,6 +14,53 @@ app = FastAPI(title="Risk Analysis AI Service")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=GROQ_API_KEY)
 
+
+E164_SYSTEM_PROMPT = """You are a phone number validation and formatting assistant.
+Your task is to only accept and output phone numbers in strict E.164 international format.
+
+Rules:
+1. A valid phone number must start with a single plus sign '+'.
+2. After '+', it must contain only digits.
+3. The next 1 to 3 digits must be a valid ITU country calling code.
+4. After the country code must follow valid national number digits (area code + subscriber number)
+   with no local trunk prefixes (e.g., drop any leading 0 from local numbers).
+5. The total number of digits (excluding the '+') must be between 2 and 15.
+6. No spaces, hyphens, parentheses, letters, or other symbols are allowed in the output.
+7. If the input number is invalid or does not match the E.164 rules, respond exactly with: Invalid phone number
+
+Do not add any additional text or explanation.
+Only output a valid E.164 phone number (e.g. +14155552671) or the exact string: Invalid phone number"""
+
+
+async def normalize_phone_e164(raw_phone: str, country: str) -> str:
+    """Pre-process the raw phone input through a dedicated LLM call to
+    produce a clean E.164 number before the main fraud analysis."""
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.1-8b-instant",   # fast, cheap model for this simple task
+            messages=[
+                {"role": "system", "content": E164_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Phone input: {raw_phone}\n"
+                        f"Country: {country}\n"
+                        "Convert to E.164 format following all rules above."
+                    )
+                }
+            ],
+            temperature=0,
+            max_tokens=30,
+        )
+        normalised = resp.choices[0].message.content.strip()
+        # Safety guard: if the model starts explaining instead of just the number, fall back
+        if normalised.startswith('+') or normalised == 'Invalid phone number':
+            return normalised
+        return raw_phone   # unchanged — let Rule 9 handle ambiguous cases
+    except Exception:
+        return raw_phone   # on any error, pass original value through
+
+
 class OrderPayload(BaseModel):
     user_profile: Dict[str, Any]
     order_details: Dict[str, Any]
@@ -89,6 +136,10 @@ Use this data to evaluate the rules below. These are FACTS — do not hallucinat
     addr_city = payload.address.get('city', 'unknown')
     user_country = payload.user_profile.get('country', 'unknown')
     postal_code = payload.address.get('postal_code', '')
+    phone_number = payload.user_profile.get('phone', 'unknown')
+
+    # --- PRE-PROCESS: Normalise phone to strict E.164 before Rule 9 validation ---
+    phone_number = await normalize_phone_e164(phone_number, user_country)
 
     # --- CHECK 1: City geo-verification (ZipcodeStack -> Nominatim Fallback) ---
     city_data_str = "City verification pending."
@@ -285,26 +336,168 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
    - If they match, or if the Delivery Address doesn't explicitly mention a conflicting city:
      - Rule #8 triggered: false. Say: "City implicitly matches or no contradictory city found in the delivery address."
 
-9. Incorrect Phone Number Pattern: +5 
-   - You are an expert phone number parser and validator that understands international numbering rules (E.164 + national formats).
-   - Use the `user_country` ({user_country}) and the provided phone number.
-   - COUNTRY CODE AUTO-INSERT: Mentally prepend the correct country calling code based on the selected country (e.g., US -> +1, India -> +91, Pakistan -> +92, UK -> +44, Australia -> +61, Brazil -> +55).
-   - FORMAT VALIDATION: Validate the rest of the number after the country code based on national formats.
-     - Pakistan (+92): Mobile must be 10 digits after +92 starting with 3. If +92 isn't present, raw input should be 11 digits with leading zero.
-     - India (+91): Exactly 10 digits after +91, starting with 6,7,8,9.
-     - US/Canada (+1): 10 digits after +1 (3-digit area + 7-digit subscriber).
-     - UK (+44): Up to 10 digits after +44; mobile typically begins with 7.
-     - Australia (+61): 9 digits after +61, mobile typically starts with 4.
-     - Brazil (+55): Area code (2 digits) + subscriber (8-9 digits).
-     - China (+86): 11 digits after +86, first three 130-199.
-     - Saudi Arabia (+966): Usually 9 digits after +966.
-     - South Africa (+27): Typically 9 digits.
-     - Nigeria (+234): Typically 10 digits.
-     - Bangladesh (+880): Typically 10 digits, mobile starts with 1.
-     - Others (Argentina +54, Mexico +52, Germany +49, France +33, Italy +39, Japan +81): Standard local numbering length.
-   - The full number must never exceed 15 digits total.
-   - IF the phone number format is WRONG (incorrect digits, wrong starting digit, invalid structure) -> triggered: true (+5 pts). State: "Number does not match the valid phone number pattern for {user_country}."
-   - IF the phone number format is VALID -> triggered: false. Optional: provide the E.164 formatted number in your explanation.
+9. Incorrect Phone Number Pattern: +5
+   - You are an expert international phone number formatter and validator.
+   - Raw input phone: `{phone_number}` | User-selected country: `{user_country}`
+
+   ─────────────────────────────────────────────────────────────────
+   STEP 0 — NORMALISE TO E.164 (ALWAYS do this first, before anything else)
+   ─────────────────────────────────────────────────────────────────
+   E.164 normalisation rules:
+     1. Output MUST start with a plus sign (+).
+     2. Use the correct country calling code from `user_country` (unless the number already has one).
+     3. Strip all spaces, hyphens, dots, parentheses, and other separators from the raw input.
+     4. Remove any local trunk / STD prefix (leading '0', '00', or other local dialing prefix) BEFORE adding the country code.
+     5. After the '+' there must be ONLY digits — no spaces or separators.
+     6. If the number is completely unparseable → triggered: true, explanation: 'Input phone number is invalid or ambiguous.'
+
+   Country calling code reference:
+     Pakistan=+92 | India=+91 | US/Canada=+1 | UK=+44 | Australia=+61 | UAE=+971
+     Saudi Arabia=+966 | Germany=+49 | France=+33 | Brazil=+55 | China=+86
+     Nigeria=+234 | South Africa=+27 | Bangladesh=+880 | Italy=+39 | Japan=+81
+     Turkey=+90 | Egypt=+20 | Argentina=+54 | Mexico=+52
+
+   Normalisation examples:
+     'input: 0300 1234567  + Pakistan  -> +923001234567'  (strip leading 0, add +92)
+     'input: 03001234567   + Pakistan  -> +923001234567'  (strip leading 0, add +92)
+     'input: +92 300-123 4567 + Pakistan -> +923001234567' (strip spaces & dashes)
+     'input: 00923001234567  + Pakistan  -> +923001234567' (strip 00 trunk prefix)
+     'input: 09812345678   + India     -> +919812345678'  (strip leading 0, add +91)
+     'input: +44 7911-123 456 + UK     -> +447911123456'  (strip spaces & dashes)
+     'input: +916543210    + India     -> +916543210'     (already has code, keep as-is)
+     'input: +916543210    + Pakistan  -> +916543210'     (keep as-is; mismatch caught in Step 2)
+
+   After normalisation, use the resulting E.164 number for all further steps.
+
+   ─────────────────────────────────────────────────────────────────
+   STEP 1 — DETECT COUNTRY CODE from the normalised E.164 number
+   ─────────────────────────────────────────────────────────────────
+   Extract calling-code prefix from the normalised number:
+     +92=Pakistan | +91=India | +1=US/Canada | +44=UK | +61=Australia
+     +971=UAE | +966=Saudi Arabia | +49=Germany | +33=France | +55=Brazil
+     +86=China | +234=Nigeria | +27=South Africa | +880=Bangladesh
+     +39=Italy | +81=Japan | +90=Turkey | +20=Egypt | +54=Argentina | +52=Mexico
+
+   ─────────────────────────────────────────────────────────────────
+   STEP 2 — COUNTRY CODE MISMATCH CHECK
+   ─────────────────────────────────────────────────────────────────
+   If the detected country code does NOT match `user_country` -> triggered: true (+5 pts).
+   Explanation: 'Phone number country code (+XX) indicates [Detected Country] but user selected {user_country}.'
+
+   ─────────────────────────────────────────────────────────────────
+   STEP 3 — NATIONAL FORMAT VALIDATION (only when Step 2 passes)
+   ─────────────────────────────────────────────────────────────────
+   Count the digits AFTER the country code prefix in the normalised E.164 number.
+
+   Country       | Code | Digits after code | First digit rule
+   --------------|------|-------------------|---------------------------------
+   Pakistan      | +92  | EXACTLY 10        | MUST start with 3 — then apply Step 3b
+   India         | +91  | EXACTLY 10        | MUST start with 6, 7, 8, or 9
+   US / Canada   | +1   | EXACTLY 10        | No restriction
+   UK            | +44  | 9 or 10           | Mobile: starts with 7
+   Australia     | +61  | EXACTLY 9         | Mobile: starts with 4
+   Saudi Arabia  | +966 | EXACTLY 9         | Mobile: starts with 5
+   Bangladesh    | +880 | EXACTLY 10        | Mobile: starts with 1
+   Nigeria       | +234 | EXACTLY 10        | No restriction
+   South Africa  | +27  | EXACTLY 9         | No restriction
+   China         | +86  | EXACTLY 11        | Mobile prefix 130-199
+   Brazil        | +55  | 10 or 11          | No restriction
+
+   - E.164 total length (country code digits + national digits) must NEVER exceed 15.
+   - IF digit count OR starting digit fails -> triggered: true (+5 pts).
+   - IF all checks pass -> proceed to Step 3b for Pakistan numbers.
+
+   ─────────────────────────────────────────────────────────────────
+   STEP 3b — PAKISTAN OPERATOR PREFIX CHECK (only for Pakistan numbers)
+   ─────────────────────────────────────────────────────────────────
+   After confirming 10 digits starting with 3, extract the 3-digit operator prefix
+   (digits 1-3 of the national number, i.e. characters at positions 3-5 of the E.164 number after +92).
+
+   VALID PTA-assigned operator prefixes ONLY:
+
+   Operator  | Valid prefixes
+   ----------|-------------------------------------------------------
+   Jazz      | 300, 301, 302, 303, 304, 305, 306, 307, 308, 309,
+             | 320, 321, 322, 323, 324, 325
+   Zong      | 310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
+             | 370, 371
+   Ufone     | 330, 331, 332, 333, 334, 335, 336, 337, 338, 339
+   Telenor   | 340, 341, 342, 343, 344, 345, 346, 347, 348
+   SCOM      | 355  (Azad Jammu & Kashmir / Gilgit-Baltistan only)
+
+   ALL other 3-digit prefixes starting with 3 are NOT assigned
+   by PTA and are therefore INVALID (e.g. 326, 327, 328, 329,
+   349, 350, 351, 352, 353, 354, 356, 357, 358, 359,
+   360-369, 372-379, 380-399).
+
+   IF the 3-digit prefix is NOT in the valid list above:
+     -> triggered: true (+5 pts)
+     -> explanation: 'The prefix +92 [XXX] is not a valid PTA-assigned Pakistani mobile operator prefix.
+        Valid prefixes: Jazz 300-309/320-325, Zong 310-319/370-371,
+        Ufone 330-339, Telenor 340-348, SCOM 355.'
+   IF the prefix IS in the valid list:
+     -> triggered: false (number is fully valid).
+
+   ─────────────────────────────────────────────────────────────────
+   WORKED EXAMPLES
+   ─────────────────────────────────────────────────────────────────
+
+   Ex 1 — Local format with leading zero (Pakistan — Jazz):
+     Input: '03012345678', country=Pakistan
+     Step 0: Strip leading 0 -> '3012345678'; add +92 -> normalised: +923012345678
+     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches user_country [OK]
+     Step 3: National = '3012345678' -> 10 digits, starts with 3 [OK]
+     Step 3b: Prefix = '301' -> Jazz [OK]
+     Result: triggered=false, explanation='Normalised to +923012345678. Valid Jazz (Pakistan) mobile.'
+
+   Ex 2 — Incomplete number (too few digits):
+     Input: '+9233', country=Pakistan
+     Step 0: Already E.164-prefixed -> normalised: +9233
+     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
+     Step 3: National = '33' -> only 2 digits; MUST be 10 [FAIL]
+     Result: triggered=true (+5 pts), explanation='Pakistani mobile numbers must be exactly 10 digits after +92, but only 2 digits found after the country code.'
+
+   Ex 3 — Spaces and dashes (UK):
+     Input: '+44 7911-123 456', country=UK
+     Step 0: Strip separators -> normalised: +447911123456
+     Step 1: Code = +44 -> UK  |  Step 2: Matches [OK]
+     Step 3: National = '7911123456' -> 10 digits, starts with 7 [OK]
+     Result: triggered=false, explanation='Normalised to +447911123456. Valid UK mobile.'
+
+   Ex 4 — Country code mismatch:
+     Input: '+916543210', country=Pakistan
+     Step 0: Already E.164 -> normalised: +916543210
+     Step 1: Code = +91 -> India  |  Step 2: Does NOT match Pakistan [FAIL]
+     Result: triggered=true (+5 pts), explanation='Country code +91 indicates India, but user selected Pakistan. Country code mismatch.'
+
+   Ex 5 — Valid Ufone number:
+     Input: '03311234567', country=Pakistan
+     Step 0: Strip leading 0 -> '3311234567'; add +92 -> normalised: +923311234567
+     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
+     Step 3: National = '3311234567' -> 10 digits, starts with 3 [OK]
+     Step 3b: Prefix = '331' -> Ufone [OK]
+     Result: triggered=false, explanation='Normalised to +923311234567. Valid Ufone (Pakistan) mobile.'
+
+   Ex 6 — Invalid operator prefix (not PTA-assigned):
+     Input: '03981234567', country=Pakistan
+     Step 0: Strip leading 0 -> '3981234567'; add +92 -> normalised: +923981234567
+     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
+     Step 3: National = '3981234567' -> 10 digits, starts with 3 [OK]
+     Step 3b: Prefix = '398' -> NOT in any valid PTA list [FAIL]
+     Result: triggered=true (+5 pts), explanation='The prefix +92398 is not a valid PTA-assigned Pakistani mobile operator prefix. Valid prefixes: Jazz 300-309/320-325, Zong 310-319/370-371, Ufone 330-339, Telenor 340-348, SCOM 355.'
+
+   Ex 7 — Valid Telenor with spaces:
+     Input: '0345 123 4567', country=Pakistan
+     Step 0: Strip spaces & leading 0 -> '3451234567'; add +92 -> normalised: +923451234567
+     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
+     Step 3: National = '3451234567' -> 10 digits, starts with 3 [OK]
+     Step 3b: Prefix = '345' -> Telenor [OK]
+     Result: triggered=false, explanation='Normalised to +923451234567. Valid Telenor (Pakistan) mobile.'
+
+   ─────────────────────────────────────────────────────────────────
+   DECISION:
+   - ANY failure in Steps 0, 2, 3, or 3b -> triggered: true (+5 pts).
+   - ALL steps pass -> triggered: false, +0 pts.
 
 ### RISK BAND RULES (NEVER deviate):
 - If total risk score is EXACTLY 0 -> recommended_action MUST be "ship" (No Risk)
