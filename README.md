@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🛡️ AI Risk Analyzer Engine  </h1>
+  <h1>🛡️ AI-Risk Analyzer Engine  </h1>
   <p>An AI-powered real-time fraud detection and risk analysis platform for e-commerce.</p>
 
   [![Next.js](https://img.shields.io/badge/Frontend-Next.js_14-black?logo=next.js)](https://nextjs.org/)
