@@ -92,8 +92,8 @@ export default function Dashboard() {
         <div className="border-b border-slate-200 bg-slate-50 p-2 flex gap-1">
           {[
             { label: "All", value: "all" },
-            { label: "Medium Risk (1-30 → manual review)", value: "medium risk", color: "yellow" },
-            { label: "Low Risk (0 → ship)", value: "low risk", color: "green" }
+            { label: "Risk detection(1-30 → manual review)", value: "medium risk", color: "yellow" },
+            { label: "No Risk detection (0 → ship)", value: "low risk", color: "green" }
           ].map(tab => {
             const isActive = activeTab === tab.value;
             let colorClasses = "text-slate-500 hover:text-slate-900 hover:bg-slate-200";

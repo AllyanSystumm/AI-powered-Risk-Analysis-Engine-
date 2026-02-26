@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🛡️ RiskGuard Engine</h1>
+  <h1>🛡️ AI Risk Analyzer Engine  </h1>
   <p>An AI-powered real-time fraud detection and risk analysis platform for e-commerce.</p>
 
   [![Next.js](https://img.shields.io/badge/Frontend-Next.js_14-black?logo=next.js)](https://nextjs.org/)
@@ -50,13 +50,16 @@ The RiskGuard system evaluates each incoming order and assigns a **Risk Score** 
 
 ### 🔍 Unpacking the 8 Fraud Detection Rules
 
+> [!NOTE]
+> **How scoring works**: Rules #1 and #2 are informational and always add **0 points**. Rules #3 through #8 are penalty rules that add **+5 points** each when triggered. If an order behaves normally and does **not** trigger any of rules #3 through #8, it receives **0 penalty points** and is automatically marked as **✅ Ship (No Risk)**.
+
 | Rule # | Validation Focus | Weight | Description |
 |---|----------------|----------|-------------------|
 | **1** | Contact Specificity | +0 | Confirms uniqueness bounds of user email and phone (Passed Check) |
 | **2** | Geo-Verify Delivery | +0 | Validates the city string against the LLMs geographic models (Passed Check) |
 | **3** | Hurry / Rapid Booking | +5 | Flags rapid successive orders from the identical email addressing bots |
 | **4** | Cross-Account Addresses | +5 | Flags identical physical delivery addresses booked across diverse user accounts |
-| **5** | Postal Code Integrity | +5 | Flags country mismatches and invalid zip-to-city locations |
+| **5** | Postal Code Integrity | +5 | **Integrated with ZipcodeStack**. The system queries the ZipcodeStack API with the provided postal code and country to retrieve the true official city and state. The system then prompts the Llama 3 model to cross-reference ZipcodeStack’s official geographic data against the exact city/state strings the customer manually entered in their order to determine if the postal code is mismatched, stolen, or entirely invalid for that region. |
 | **6** | Stolen Identity (Email) | +5 | A single email is logged across entirely unrelated identities |
 | **7** | Stolen Identity (Phone) | +5 | A single contact number is used by separate entities |
 | **8** | Delivery Mismatch | +5 | Explict 'City' field directly contradicts the inline street address format |
@@ -70,11 +73,13 @@ The RiskGuard system evaluates each incoming order and assigns a **Risk Score** 
 - **Python** 3.10+
 - **Docker** and Docker Compose (for the DB)
 - **Groq API Key** (Avail. free at [console.groq.com](https://console.groq.com))
+- **ZipcodeStack API Key** (For rule #5 postal validation. Avail. free at [zipcodestack.com](https://zipcodestack.com/))
 
 ### 2. Configure Environment `.env`
 Create `.env` inside `backend/ai_service/`:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
+ZIPCODESTACK_API_KEY=your_zipcodestack_api_key_here
 ```
 
 Ensure `backend/main_api/.env` is configured natively:
