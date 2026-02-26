@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 
+import Link from "next/link";
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("all");
   const [orders, setOrders] = useState<any[]>([]);
@@ -95,6 +97,12 @@ export default function Dashboard() {
             <span className="text-xs text-yellow-900 uppercase font-bold tracking-wider">Total Manual Review</span>
             <span className="text-2xl font-bold text-yellow-950">{totalManualReview}</span>
           </div>
+          <Link href="/graph" className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md rounded-xl p-3 px-6 flex flex-col items-center justify-center transition-colors border border-indigo-700 group">
+            <svg className="w-6 h-6 mb-1 text-indigo-100 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span className="text-sm font-bold tracking-wide">Graph Analysis</span>
+          </Link>
         </div>
       </div>
 
