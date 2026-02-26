@@ -146,7 +146,7 @@ export default function Dashboard() {
               <col style={{ width: '70px' }} />   {/* Delete */}
             </colgroup>
             <thead className="sticky top-0 z-10">
-              <tr className="bg-slate-200 text-xs uppercase text-slate-600 font-bold border-b border-slate-300">
+              <tr className="bg-slate-300 text-xs uppercase text-slate-700 font-bold border-b border-slate-400">
                 <th className="py-3 px-2 tracking-wider">Count</th>
                 <th className="py-3 px-2 tracking-wider">Order ID</th>
                 <th className="py-3 px-2 tracking-wider">Customer</th>
