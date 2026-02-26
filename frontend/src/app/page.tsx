@@ -72,6 +72,8 @@ export default function Dashboard() {
   });
 
   const totalOrders = orders.length;
+  const totalShip = orders.filter(o => o.riskAssessment?.recommendedAction?.toLowerCase() === 'ship').length;
+  const totalManualReview = orders.filter(o => o.riskAssessment?.recommendedAction?.toLowerCase() === 'manual_review').length;
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-2">
@@ -84,6 +86,14 @@ export default function Dashboard() {
           <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
             <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Processed</span>
             <span className="text-2xl font-bold text-slate-800">{totalOrders}</span>
+          </div>
+          <div className="bg-green-50 border border-green-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
+            <span className="text-xs text-green-700 uppercase font-bold tracking-wider">Total Ship</span>
+            <span className="text-2xl font-bold text-green-800">{totalShip}</span>
+          </div>
+          <div className="bg-yellow-50 border border-yellow-200 shadow-sm rounded-xl p-3 px-5 flex flex-col items-center">
+            <span className="text-xs text-yellow-700 uppercase font-bold tracking-wider">Total Manual Review</span>
+            <span className="text-2xl font-bold text-yellow-800">{totalManualReview}</span>
           </div>
         </div>
       </div>
