@@ -220,7 +220,7 @@ export default function Dashboard() {
                     <td className="py-3 px-2 text-right">
                       <button
                         onClick={() => handleDelete(order.orderIdString, order.id)}
-                        className="text-red-600 hover:text-red-700 transition-colors bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 hover:border-red-300 shadow-sm whitespace-nowrap"
+                        className="text-white bg-red-600 hover:bg-red-700 transition-colors px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-600 shadow-sm whitespace-nowrap"
                       >
                         Delete
                       </button>
