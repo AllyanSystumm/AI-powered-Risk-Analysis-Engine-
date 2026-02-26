@@ -42,16 +42,16 @@ graph TD;
 
 The RiskGuard system evaluates each incoming order and assigns a **Risk Score** dynamically scaling from **0 to 30**.
 
-- **Point Allocation**: The system leverages 8 distinct fraud detection rules. Rules #1 and #2 perform informational checks (+0 points). Rules #3 through #8 are actual penalty rules. Each time a penalty rule applies to an order, it receives exactly **+5 risk points**.
-- **Score Range**: While an order theoretically triggers multiple rules (6 rules * 5 points = 30 points), the backend strictly limits and **caps the maximum score at 30** to encompass the full scale.
+- **Point Allocation**: The system leverages 9 distinct fraud detection rules. Rules #1 and #2 perform informational checks (+0 points). Rules #3 through #9 are actual penalty rules. Each time a penalty rule applies to an order, it receives exactly **+5 risk points**.
+- **Score Range**: While an order theoretically triggers multiple rules, the backend strictly limits and **caps the maximum score at 30** to encompass the full scale.
 - **Outcome Actions**:
   - **0 points**: The order strictly receives a recommendation to **Ship** (No Risk).
   - **1 to 30 points**: The order receives a recommendation for **Manual Review** (Chances of Risk Delivery).
 
-### 🔍 Unpacking the 8 Fraud Detection Rules
+### 🔍 Unpacking the 9 Fraud Detection Rules
 
 > [!NOTE]
-> **How scoring works**: Rules #1 and #2 are informational and always add **0 points**. Rules #3 through #8 are penalty rules that add **+5 points** each when triggered. If an order behaves normally and does **not** trigger any of rules #3 through #8, it receives **0 penalty points** and is automatically marked as **✅ Ship (No Risk)**.
+> **How scoring works**: Rules #1 and #2 are informational and always add **0 points**. Rules #3 through #9 are penalty rules that add **+5 points** each when triggered. If an order behaves normally and does **not** trigger any of rules #3 through #9, it receives **0 penalty points** and is automatically marked as **✅ Ship (No Risk)**.
 
 | Rule # | Validation Focus | Weight | Description |
 |---|----------------|----------|-------------------|
@@ -59,10 +59,11 @@ The RiskGuard system evaluates each incoming order and assigns a **Risk Score** 
 | **2** | Geo-Verify Delivery | +0 | Validates the city string against the LLMs geographic models (Passed Check) |
 | **3** | Hurry / Rapid Booking | +5 | Flags rapid successive orders from the identical email addressing bots. **Triggers if ANY of the following are met**: 1) `< 10 mins` since their last order, 2) `> 2 orders` in the last 24 hours, or 3) `> 14 orders` in the last 7 days. |
 | **4** | Cross-Account Addresses | +5 | Flags identical physical delivery addresses booked across diverse user accounts |
-| **5** | Postal Code Integrity | +5 | **Integrated with ZipcodeStack**. The system queries the ZipcodeStack API with the provided postal code and country to retrieve the true official city and state. The system then prompts the Llama 3 model to cross-reference ZipcodeStack’s official geographic data against the exact city/state strings the customer manually entered in their order to determine if the postal code is mismatched, stolen, or entirely invalid for that region. |
+| **5** | Postal Code Integrity | +5 | **Integrated with ZipcodeStack**. Queries ZipcodeStack to verify if the postal code exists in the requested shipping province and country. |
 | **6** | Stolen Identity (Email) | +5 | A single email is logged across entirely unrelated identities |
 | **7** | Stolen Identity (Phone) | +5 | A single contact number is used by separate entities |
 | **8** | Delivery Mismatch | +5 | Explict 'City' field directly contradicts the inline street address format |
+| **9** | Incorrect Phone Number Pattern | +5 | Evaluates phone strings format (length, country code prefix, permitted starting prefixes) exactly against its linked country. E.g., United States (+1) must be 10 further digits without starting 1 or 0s; India (+91) must be exactly 10 digits starting with 6-9. |
 
 ---
 
