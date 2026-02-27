@@ -61,6 +61,98 @@ async def normalize_phone_e164(raw_phone: str, country: str) -> str:
         return raw_phone   # on any error, pass original value through
 
 
+ADDRESS_VALIDATION_SYSTEM_PROMPT = """You are a Global Delivery Address Validation Expert.
+
+Your task:
+Analyze the input text to determine if it is a plausible, real-world delivery address. You must use your extensive geographic knowledge to identify street names, city patterns, and regional address structures.
+
+Core Validation Rules:
+1. NO STATIC REGEX: Use your AI knowledge to determine if a pattern is a valid delivery address for that region.
+2. COMPONENT REQUIREMENTS: A valid address SHOULD contain:
+   - City Name
+   - Street Number
+   - Street Name
+   - Town Number (Town No.)
+   - Town Name
+   - Block Number (Block No.)
+   - Block Name
+   (Note: These are ideal components. In some international contexts, "Town" or "Block" may not be used, but for regions where they are standard, they are required. The key is structural completeness for the region.)
+3. FLEXIBILITY: Do NOT reject if the following are missing:
+   - Customer Name (the user's own name)
+   - State Name
+   - Postal Code / Zip Code
+4. STRICT GIBBERISH REJECTION: Immediately reject (INVALID) any input containing non-understandable strings, random characters (e.g., 'asdfgh'), or keyboard mashes.
+5. NO IRRELEVANT DATA: Reject if the string contains any irrelevant or not understandable strings, characters, integers, or float numbers mixed into the address.
+6. TYPOS: A single minor typo is acceptable, but multiple garbled words make it INVALID.
+7. FINDABILITY: If a local delivery person could likely find the location based on the provided text, and it meets the structural requirements of that country, it is VALID.
+
+Output must be a JSON object:
+{
+  "input": "original input text",
+  "status": "VALID" or "INVALID",
+  "normalized_address": "Standardized address (excluding Customer Name)",
+  "reason": "Clear explanation if INVALID"
+}
+
+Golden Examples (VALID):
+- "United States: 123 Main Street, Los Angeles CA 90012"
+- "Canada: 456 Maple Ave, Toronto ON M5H 2N2"
+- "United Kingdom: 78 High Street, London SW1A 1AA"
+- "Australia: 12 Pitt Street, Sydney NSW 2000"
+- "Germany: Berliner Strasse 33, 10117 Berlin"
+- "France: 15 Rue de Rivoli, 75001 Paris"
+- "Italy: Via Roma 22, 00184 Roma RM"
+- "Spain: Calle Mayor 8, 28013 Madrid"
+- "Netherlands: Keizersgracht 456, 1017 ET Amsterdam"
+- "Sweden: Drottninggatan 57, 111 21 Stockholm"
+- "Brazil: Rua das Flores 144, São Paulo SP 01001-000"
+- "Mexico: Av. Insurgentes Sur 501, Ciudad de México 03100"
+- "Japan: 1-2-3 Shinjuku, Shinjuku-ku, Tokyo 160-0022"
+- "South Korea: 23 Gangnam-daero, Seocho-gu, Seoul 06612"
+- "India: Plot 56, MG Road, Bengaluru KA 560001"
+- "Pakistan: House #11, Street 5, Gulberg III, Lahore 54660"
+- "South Africa: 109 Long Street, Cape Town 8001"
+- "Nigeria: 24 Broad Street, Lagos 100001"
+
+Valid even if missing non-essential data:
+- "123 Main St, Los Angeles" (Valid: missing state/zip)
+- "House 11, Street 5, Gulberg III, Lahore" (Valid: missing zip)
+
+Negative Examples (INVALID):
+- "8998sfgdfs bvbb - Block , Military Ahghsfhgccount , lahore" (Gibberish strings 'sfgdfs')
+- "Office 111111111111111111111111, Karachi" (Irrelevant/Unnaturally long numbers)
+- "kjhgfds 12.345.678 !! New York" (Nonsensical/Irrelevant floats/characters)
+
+Respond ONLY with the JSON object."""
+
+
+async def validate_address_with_llm(address_str: str) -> dict:
+    """Validate a delivery address using the LLM. Returns {'status': 'VALID'|'INVALID'|'ERROR', 'detail': str}"""
+    try:
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": ADDRESS_VALIDATION_SYSTEM_PROMPT},
+                {"role": "user", "content": address_str}
+            ],
+            temperature=0,
+            max_tokens=250,
+            response_format={"type": "json_object"}
+        )
+        import json as _json
+        raw = resp.choices[0].message.content.strip()
+        parsed = _json.loads(raw)
+        status = parsed.get("status", "INVALID").upper()
+        if status == "VALID":
+            normalized = parsed.get("normalized_address", address_str)
+            return {"status": "VALID", "detail": f"VALIDATED: LLM confirmed deliverable address. Normalized: '{normalized}'"}
+        else:
+            reason = parsed.get("reason", "Address could not be validated.")
+            return {"status": "INVALID", "detail": f"INVALID: {reason}"}
+    except Exception as e:
+        return {"status": "ERROR", "detail": f"API_ERROR: Address validation LLM call failed — {str(e)}"}
+
+
 class OrderPayload(BaseModel):
     user_profile: Dict[str, Any]
     order_details: Dict[str, Any]
@@ -198,6 +290,25 @@ Use this data to evaluate the rules below. These are FACTS — do not hallucinat
         except Exception as e:
             zip_data_str = f"Postal API error: {str(e)}. Fallback to LLM internal knowledge verification."
 
+    # --- CHECK 3: Full delivery address validation via LLM ---
+    geocode_status = "PENDING"
+    geocode_detail = "Address validation not attempted."
+    try:
+        addr_parts = [
+            payload.address.get('street', ''),
+            payload.address.get('city', ''),
+            payload.address.get('state', ''),
+            postal_code,
+            user_country,
+        ]
+        addr_for_validation = ", ".join(p for p in addr_parts if p)
+        llm_result = await validate_address_with_llm(addr_for_validation)
+        geocode_status = llm_result["status"]
+        geocode_detail = llm_result["detail"]
+    except Exception as e:
+        geocode_status = "ERROR"
+        geocode_detail = f"API_ERROR: Address validation failed — {str(e)}"
+
     geo_comparison = f"""
 ### GEOGRAPHIC LOCATION COMPARISON
 | Field                 | Value                                              |
@@ -214,6 +325,11 @@ Use this data to evaluate the rules below. These are FACTS — do not hallucinat
 - **City Lookup:** {city_data_str}
 - **Postal Code Lookup:** {zip_data_str}
 
+---
+### GEOCODING RESULT (OpenCage — Full Address Lookup)
+- **Status:** {geocode_status}
+- **Detail:** {geocode_detail}
+
 ### CRITICAL GEO-RISK INSTRUCTIONS (Rules 5 & 6):
 1. **Rule #5 (City Verification):**
    - If city lookup says VERIFIED (ZipcodeStack or Nominatim) → Rule #5 triggered: false.
@@ -224,13 +340,13 @@ Use this data to evaluate the rules below. These are FACTS — do not hallucinat
      - If all three match (case-insensitive, accounting for abbreviations): Rule #6 triggered: false. Explanation must say: "The postal code '{postal_code}' is confirmed to match city '{addr_city}', state '{payload.address.get('state', 'unknown')}', and country '{user_country}' — verified by ZipcodeStack API."
      - If City and Country match but State mismatches: USE YOUR KNOWLEDGE. You have the flexibility to accept it if the postal code is logically related to the known correct state or if it's a known formatting issue. In this case, Rule #6 triggered: false.
      - If the postal code is TOTALLY OPPOSITE to the provided city '{addr_city}', state '{payload.address.get('state', 'unknown')}', and country '{user_country}': Rule #6 triggered: true. Add a severe explanation highlighting the total mismatch.
-   - **Scenario 2 - API DATA NOT FOUND or API ERROR:** Use internal AI knowledge. Check:
-     1. Is the city '{addr_city}' actually in the state '{payload.address.get('state', 'unknown')}'?
-     2. Is the city '{addr_city}' actually in country '{user_country}'?
-     3. Is postal code '{postal_code}' valid for '{addr_city}'?
-     - Comparisons MUST be case-insensitive. Minor caps differences ('punjab' vs 'Punjab') are NOT mismatches.
-     - Be FLEXIBLE: If postal doesn't match the state perfectly based on API but matches via your knowledge base, accept it.
-     - If the postal code is TOTALLY OPPOSITE/WRONG for the given country/state/city based on your knowledge: Rule #6 triggered: true. Specify the exact mismatch.
+   - **Scenario 2 - API DATA NOT FOUND or API ERROR:** Use your internal LLM knowledge to verify. Check:
+      1. Is the city '{addr_city}' actually in country '{user_country}'?
+      2. Is postal code '{postal_code}' a known/real postal code for '{addr_city}' in '{user_country}'?
+      - **If your knowledge confirms BOTH are correct -> Rule #6 MUST be triggered: false. Explanation: "Postal code '{postal_code}' confirmed for '{addr_city}', '{user_country}' via LLM knowledge (API data unavailable)."**
+      - The API being unavailable is NEVER by itself a reason to trigger Rule #6. Only trigger if your knowledge says the postal code is CLEARLY WRONG for the given city/country.
+      - Comparisons are case-insensitive. Minor differences ('punjab' vs 'Punjab') are NOT mismatches.
+      - If the postal code is obviously wrong for the city/country based on your knowledge: Rule #6 triggered: true. Explain the mismatch clearly.
 """
 
     # Serialize order data without historical_context to avoid sending it twice
@@ -254,7 +370,7 @@ Your output MUST be valid JSON only, NOTHING else.
 Provide exactly these fields:
 {{
 "order_id": "<string>",
-"risk_score": <number 0-30>,
+"risk_score": <number 0-40>,
 "risk_flags": [
 {{
 "rule_id": <number>,
@@ -271,8 +387,8 @@ Provide exactly these fields:
 "summary": "<string concise summary>"
 }}
 
-### RISK SCORING RULES (9 rules total)
-You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
+### RISK SCORING RULES (10 rules total)
+You MUST evaluate ALL 10 rules and include ALL 10 in the `risk_flags` array.
 
 --- PASSED CHECKS (informational, always triggered: false, +0 points) ---
 
@@ -336,20 +452,23 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
    - If they match, or if the Delivery Address doesn't explicitly mention a conflicting city:
      - Rule #8 triggered: false. Say: "City implicitly matches or no contradictory city found in the delivery address."
 
-9. Incorrect Phone Number Pattern: +5
+9. Phone Number VS Country Name: +5
    - You are an expert international phone number formatter and validator.
-   - Raw input phone: `{phone_number}` | User-selected country: `{user_country}`
+   - Raw input phone: `{phone_number}`
+   - **IMPORTANT: Do NOT compare the phone number's country code against the user's selected country.
+     Only validate that the phone number itself is structurally correct and well-formed.**
 
    ─────────────────────────────────────────────────────────────────
    STEP 0 — NORMALISE TO E.164 (ALWAYS do this first, before anything else)
    ─────────────────────────────────────────────────────────────────
    E.164 normalisation rules:
      1. Output MUST start with a plus sign (+).
-     2. Use the correct country calling code from `user_country` (unless the number already has one).
-     3. Strip all spaces, hyphens, dots, parentheses, and other separators from the raw input.
-     4. Remove any local trunk / STD prefix (leading '0', '00', or other local dialing prefix) BEFORE adding the country code.
-     5. After the '+' there must be ONLY digits — no spaces or separators.
-     6. If the number is completely unparseable → triggered: true, explanation: 'Input phone number is invalid or ambiguous.'
+     2. If the number already has a '+' prefix with a valid calling code, keep it as-is.
+     3. If the number has NO country code, use `{user_country}` only to determine the calling code to prepend.
+     4. Strip all spaces, hyphens, dots, parentheses, and other separators from the input.
+     5. Remove any local trunk / STD prefix (leading '0', '00') BEFORE adding the country code.
+     6. After the '+' there must be ONLY digits — no spaces or separators.
+     7. If the number is completely unparseable → triggered: true, explanation: 'Input phone number is invalid or ambiguous.'
 
    Country calling code reference:
      Pakistan=+92 | India=+91 | US/Canada=+1 | UK=+44 | Australia=+61 | UAE=+971
@@ -357,160 +476,115 @@ You MUST evaluate ALL 9 rules and include ALL 9 in the `risk_flags` array.
      Nigeria=+234 | South Africa=+27 | Bangladesh=+880 | Italy=+39 | Japan=+81
      Turkey=+90 | Egypt=+20 | Argentina=+54 | Mexico=+52
 
-   Normalisation examples:
-     'input: 0300 1234567  + Pakistan  -> +923001234567'  (strip leading 0, add +92)
-     'input: 03001234567   + Pakistan  -> +923001234567'  (strip leading 0, add +92)
-     'input: +92 300-123 4567 + Pakistan -> +923001234567' (strip spaces & dashes)
-     'input: 00923001234567  + Pakistan  -> +923001234567' (strip 00 trunk prefix)
-     'input: 09812345678   + India     -> +919812345678'  (strip leading 0, add +91)
-     'input: +44 7911-123 456 + UK     -> +447911123456'  (strip spaces & dashes)
-     'input: +916543210    + India     -> +916543210'     (already has code, keep as-is)
-     'input: +916543210    + Pakistan  -> +916543210'     (keep as-is; mismatch caught in Step 2)
-
    After normalisation, use the resulting E.164 number for all further steps.
 
    ─────────────────────────────────────────────────────────────────
    STEP 1 — DETECT COUNTRY CODE from the normalised E.164 number
    ─────────────────────────────────────────────────────────────────
-   Extract calling-code prefix from the normalised number:
+   Extract calling-code prefix from the normalised number to determine WHICH country's
+   pattern rules to apply to validate this number:
      +92=Pakistan | +91=India | +1=US/Canada | +44=UK | +61=Australia
      +971=UAE | +966=Saudi Arabia | +49=Germany | +33=France | +55=Brazil
      +86=China | +234=Nigeria | +27=South Africa | +880=Bangladesh
      +39=Italy | +81=Japan | +90=Turkey | +20=Egypt | +54=Argentina | +52=Mexico
 
    ─────────────────────────────────────────────────────────────────
-   STEP 2 — COUNTRY CODE MISMATCH CHECK
+   STEP 2 — NATIONAL FORMAT VALIDATION
    ─────────────────────────────────────────────────────────────────
-   If the detected country code does NOT match `user_country` -> triggered: true (+5 pts).
-   Explanation: 'Phone number country code (+XX) indicates [Detected Country] but user selected {user_country}.'
-
-   ─────────────────────────────────────────────────────────────────
-   STEP 3 — NATIONAL FORMAT VALIDATION (only when Step 2 passes)
-   ─────────────────────────────────────────────────────────────────
+   Validate the digit count and first-digit rules for the detected country code.
    Count the digits AFTER the country code prefix in the normalised E.164 number.
 
    Country       | Code | Digits after code | First digit rule
    --------------|------|-------------------|---------------------------------
-   Pakistan      | +92  | EXACTLY 10        | MUST start with 3 — then apply Step 3b
+   Pakistan      | +92  | EXACTLY 10        | MUST start with 3
    India         | +91  | EXACTLY 10        | MUST start with 6, 7, 8, or 9
    US / Canada   | +1   | EXACTLY 10        | No restriction
    UK            | +44  | 9 or 10           | Mobile: starts with 7
    Australia     | +61  | EXACTLY 9         | Mobile: starts with 4
+   UAE           | +971 | EXACTLY 9         | Mobile: starts with 5
    Saudi Arabia  | +966 | EXACTLY 9         | Mobile: starts with 5
    Bangladesh    | +880 | EXACTLY 10        | Mobile: starts with 1
    Nigeria       | +234 | EXACTLY 10        | No restriction
    South Africa  | +27  | EXACTLY 9         | No restriction
    China         | +86  | EXACTLY 11        | Mobile prefix 130-199
    Brazil        | +55  | 10 or 11          | No restriction
+   Unknown code  |  —   | 2–15 digits total  | No restriction (just check total length)
 
    - E.164 total length (country code digits + national digits) must NEVER exceed 15.
    - IF digit count OR starting digit fails -> triggered: true (+5 pts).
-   - IF all checks pass -> proceed to Step 3b for Pakistan numbers.
-
-   ─────────────────────────────────────────────────────────────────
-   STEP 3b — PAKISTAN OPERATOR PREFIX CHECK (only for Pakistan numbers)
-   ─────────────────────────────────────────────────────────────────
-   After confirming 10 digits starting with 3, extract the 3-digit operator prefix
-   (digits 1-3 of the national number, i.e. characters at positions 3-5 of the E.164 number after +92).
-
-   VALID PTA-assigned operator prefixes ONLY:
-
-   Operator  | Valid prefixes
-   ----------|-------------------------------------------------------
-   Jazz      | 300, 301, 302, 303, 304, 305, 306, 307, 308, 309,
-             | 320, 321, 322, 323, 324, 325
-   Zong      | 310, 311, 312, 313, 314, 315, 316, 317, 318, 319,
-             | 370, 371
-   Ufone     | 330, 331, 332, 333, 334, 335, 336, 337, 338, 339
-   Telenor   | 340, 341, 342, 343, 344, 345, 346, 347, 348
-   SCOM      | 355  (Azad Jammu & Kashmir / Gilgit-Baltistan only)
-
-   ALL other 3-digit prefixes starting with 3 are NOT assigned
-   by PTA and are therefore INVALID (e.g. 326, 327, 328, 329,
-   349, 350, 351, 352, 353, 354, 356, 357, 358, 359,
-   360-369, 372-379, 380-399).
-
-   IF the 3-digit prefix is NOT in the valid list above:
-     -> triggered: true (+5 pts)
-     -> explanation: 'The prefix +92 [XXX] is not a valid PTA-assigned Pakistani mobile operator prefix.
-        Valid prefixes: Jazz 300-309/320-325, Zong 310-319/370-371,
-        Ufone 330-339, Telenor 340-348, SCOM 355.'
-   IF the prefix IS in the valid list:
-     -> triggered: false (number is fully valid).
+   - IF all checks pass -> triggered: false. No further sub-checks required.
 
    ─────────────────────────────────────────────────────────────────
    WORKED EXAMPLES
    ─────────────────────────────────────────────────────────────────
 
-   Ex 1 — Local format with leading zero (Pakistan — Jazz):
-     Input: '03012345678', country=Pakistan
+   Ex 1 — Valid Pakistan number (+923217869933):
+     Input: '+923217869933'
+     Step 0: Already E.164 -> normalised: +923217869933
+     Step 1: Code = +92 -> Pakistan rules apply
+     Step 2: National = '3217869933' -> 10 digits, starts with 3 [OK]
+     Result: triggered=false, explanation='Phone number +923217869933 belongs to Pakistan (code +92). Phone number and customer country are matched.'
+
+   Ex 2 — Another valid Pakistan number (03012345678):
+     Input: '03012345678'
      Step 0: Strip leading 0 -> '3012345678'; add +92 -> normalised: +923012345678
-     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches user_country [OK]
-     Step 3: National = '3012345678' -> 10 digits, starts with 3 [OK]
-     Step 3b: Prefix = '301' -> Jazz [OK]
-     Result: triggered=false, explanation='Normalised to +923012345678. Valid Jazz (Pakistan) mobile.'
+     Step 1: Code = +92 -> Pakistan rules apply
+     Step 2: National = '3012345678' -> 10 digits, starts with 3 [OK]
+     Result: triggered=false, explanation='Phone number +923012345678 belongs to Pakistan (code +92). Phone number and customer country are matched.'
 
-   Ex 2 — Incomplete number (too few digits):
-     Input: '+9233', country=Pakistan
-     Step 0: Already E.164-prefixed -> normalised: +9233
-     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
-     Step 3: National = '33' -> only 2 digits; MUST be 10 [FAIL]
-     Result: triggered=true (+5 pts), explanation='Pakistani mobile numbers must be exactly 10 digits after +92, but only 2 digits found after the country code.'
+   Ex 3 — Incomplete Pakistan number:
+     Input: '+9233'
+     Step 0: Already E.164 -> normalised: +9233
+     Step 1: Code = +92 -> Pakistan rules apply
+     Step 2: National = '33' -> only 2 digits; MUST be EXACTLY 10 [FAIL]
+     Result: triggered=true (+5 pts), explanation='Pakistani mobile numbers must be exactly 10 digits after +92, but only 2 found.'
 
-   Ex 3 — Spaces and dashes (UK):
-     Input: '+44 7911-123 456', country=UK
+   Ex 4 — Valid UK mobile:
+     Input: '+44 7911-123 456'
      Step 0: Strip separators -> normalised: +447911123456
-     Step 1: Code = +44 -> UK  |  Step 2: Matches [OK]
-     Step 3: National = '7911123456' -> 10 digits, starts with 7 [OK]
-     Result: triggered=false, explanation='Normalised to +447911123456. Valid UK mobile.'
+     Step 1: Code = +44 -> UK rules apply
+     Step 2: National = '7911123456' -> 10 digits, starts with 7 [OK]
+     Result: triggered=false, explanation='Phone number +447911123456 belongs to UK (code +44). Phone number and customer country are matched.'
 
-   Ex 4 — Country code mismatch:
-     Input: '+916543210', country=Pakistan
-     Step 0: Already E.164 -> normalised: +916543210
-     Step 1: Code = +91 -> India  |  Step 2: Does NOT match Pakistan [FAIL]
-     Result: triggered=true (+5 pts), explanation='Country code +91 indicates India, but user selected Pakistan. Country code mismatch.'
-
-   Ex 5 — Valid Ufone number:
-     Input: '03311234567', country=Pakistan
-     Step 0: Strip leading 0 -> '3311234567'; add +92 -> normalised: +923311234567
-     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
-     Step 3: National = '3311234567' -> 10 digits, starts with 3 [OK]
-     Step 3b: Prefix = '331' -> Ufone [OK]
-     Result: triggered=false, explanation='Normalised to +923311234567. Valid Ufone (Pakistan) mobile.'
-
-   Ex 6 — Invalid operator prefix (not PTA-assigned):
-     Input: '03981234567', country=Pakistan
-     Step 0: Strip leading 0 -> '3981234567'; add +92 -> normalised: +923981234567
-     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
-     Step 3: National = '3981234567' -> 10 digits, starts with 3 [OK]
-     Step 3b: Prefix = '398' -> NOT in any valid PTA list [FAIL]
-     Result: triggered=true (+5 pts), explanation='The prefix +92398 is not a valid PTA-assigned Pakistani mobile operator prefix. Valid prefixes: Jazz 300-309/320-325, Zong 310-319/370-371, Ufone 330-339, Telenor 340-348, SCOM 355.'
-
-   Ex 7 — Valid Telenor with spaces:
-     Input: '0345 123 4567', country=Pakistan
-     Step 0: Strip spaces & leading 0 -> '3451234567'; add +92 -> normalised: +923451234567
-     Step 1: Code = +92 -> Pakistan  |  Step 2: Matches [OK]
-     Step 3: National = '3451234567' -> 10 digits, starts with 3 [OK]
-     Step 3b: Prefix = '345' -> Telenor [OK]
-     Result: triggered=false, explanation='Normalised to +923451234567. Valid Telenor (Pakistan) mobile.'
+   Ex 5 — Valid India number on any order:
+     Input: '+919812345678'
+     Step 0: Already E.164 -> normalised: +919812345678
+     Step 1: Code = +91 -> India rules apply
+     Step 2: National = '9812345678' -> 10 digits, starts with 9 [OK]
+     Result: triggered=false, explanation='Phone number +919812345678 belongs to India (code +91). Phone number and customer country are matched.'
 
    ─────────────────────────────────────────────────────────────────
    DECISION:
-   - ANY failure in Steps 0, 2, 3, or 3b -> triggered: true (+5 pts).
-   - ALL steps pass -> triggered: false, +0 pts.
+   - ANY failure in Steps 0 or 2 -> triggered: true (+5 pts).
+   - ALL steps pass -> triggered: false, +0 pts. Explanation MUST say: 'Phone number <E.164> belongs to <Country> (code <+XX>). Phone number and customer country are matched.'
+   - NEVER trigger this rule because of a country name mismatch — only structural pattern failures count.
+
+
+10. Delivery Address Details (LLM Validation): +5
+    - USE the **GEOCODING RESULT** section above (now powered by LLM address validation).
+    - If geocode_status = "VALID":
+      -> triggered: false.
+      -> Copy the detail string as the explanation: it contains the normalized address.
+    - If geocode_status = "INVALID":
+      -> triggered: true (+5 pts).
+      -> explanation: Use the detail string which explains exactly why the address is invalid.
+    - If geocode_status = "ERROR" (validation call failed):
+      -> triggered: false (benefit of the doubt — do not penalise on API/system failure).
+      -> explanation: "Address validation service unavailable — delivery address validation skipped for this order."
 
 ### RISK BAND RULES (NEVER deviate):
 - If total risk score is EXACTLY 0 -> recommended_action MUST be "ship" (No Risk)
-- If total risk score is 1 to 30 -> recommended_action MUST be "manual_review" (Chances of Risk Delivery)
+- If total risk score is 1 to 40 -> recommended_action MUST be "manual_review" (Chances of Risk Delivery)
 
 ### CRITICAL INSTRUCTIONS:
-1. You MUST include ALL 9 rules in the `risk_flags` array.
-2. The `risk_score` MUST be the exact sum of weights of triggered rules (each triggered risk rule = +5), but CAPPED at a maximum of 30.
+1. You MUST include ALL 10 rules in the `risk_flags` array.
+2. The `risk_score` MUST be the exact sum of weights of triggered rules (each triggered risk rule = +5), with a maximum possible score of 40 (8 penalty rules × 5 pts).
 3. If 0 risk rules triggered -> risk_score = 0, action = "ship".
 4. NEVER hallucinate or invent data. Only use what is in the DATABASE CONTEXT and INPUT DATA.
 5. For Rule 3 (Hurry Order Booking): if minutes_since_last_order is null, it is a FIRST ORDER — do NOT trigger.
 6. For Rules 6 and 7: if the database list says "None found", the rule MUST be triggered: false.
-7. SUMMARY: Write 2-3 sentences describing what was found and the recommended action.
+7. For Rule 10 (Delivery Address Details): ONLY use the GEOCODING RESULT section above. Do not decide based on your LLM knowledge — the API result is authoritative.
+8. SUMMARY: Write 2-3 sentences describing what was found and the recommended action.
 """
 
 

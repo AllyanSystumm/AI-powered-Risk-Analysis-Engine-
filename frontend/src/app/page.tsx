@@ -104,7 +104,7 @@ export default function Dashboard() {
         <div className="border-b border-slate-200 bg-slate-50 p-2 flex gap-1">
           {[
             { label: "All", value: "all", color: "blue" },
-            { label: "Risk detection(1-30 → manual review)", value: "medium risk", color: "yellow" },
+            { label: "Risk detection (1-40 → manual review)", value: "medium risk", color: "yellow" },
             { label: "No Risk detection (0 → ship)", value: "low risk", color: "green" }
           ].map(tab => {
             const isActive = activeTab === tab.value;
@@ -136,22 +136,7 @@ export default function Dashboard() {
 
         <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="w-full text-left border-collapse min-w-[1300px]">
-            <colgroup>
-              <col style={{ width: '40px' }} />   {/* # */}
-              <col style={{ width: '120px' }} />  {/* Order ID */}
-              <col style={{ width: '100px' }} />  {/* Customer */}
-              <col style={{ width: '170px' }} />  {/* Email */}
-              <col style={{ width: '110px' }} />  {/* Contact */}
-              <col style={{ width: '160px' }} />  {/* Address */}
-              <col style={{ width: '90px' }} />   {/* Postal Code */}
-              <col style={{ width: '70px' }} />   {/* Country */}
-              <col style={{ width: '90px' }} />   {/* Time */}
-              <col style={{ width: '70px' }} />   {/* Amount */}
-              <col style={{ width: '110px' }} />  {/* Risk Score */}
-              <col style={{ width: '120px' }} />  {/* Recommendation */}
-              <col style={{ width: '90px' }} />   {/* Analysis */}
-              <col style={{ width: '70px' }} />   {/* Delete */}
-            </colgroup>
+            <colgroup><col style={{ width: '40px' }} /><col style={{ width: '120px' }} /><col style={{ width: '100px' }} /><col style={{ width: '170px' }} /><col style={{ width: '110px' }} /><col style={{ width: '160px' }} /><col style={{ width: '90px' }} /><col style={{ width: '70px' }} /><col style={{ width: '90px' }} /><col style={{ width: '70px' }} /><col style={{ width: '110px' }} /><col style={{ width: '120px' }} /><col style={{ width: '90px' }} /><col style={{ width: '70px' }} /></colgroup>
             <thead className="sticky top-0 z-10">
               <tr className="bg-slate-300 text-xs uppercase text-slate-700 font-bold border-b border-slate-400">
                 <th className="py-3 px-2 tracking-wider">Count</th>
@@ -186,7 +171,7 @@ export default function Dashboard() {
                     <td className="py-3 px-2 text-sm text-slate-700 font-medium break-words">{order.userProfile?.fullName || '—'}</td>
                     <td className="py-3 px-2 text-sm text-slate-500 break-all">{order.userProfile?.email || '—'}</td>
                     <td className="py-3 px-2 text-sm text-slate-500 break-all">{order.userProfile?.phone || '—'}</td>
-                    <td className="py-3 px-2 text-sm text-slate-500 break-words">{order.address ? `${order.address.street}, ${order.address.city}` : '—'}</td>
+                    <td className="py-3 px-2 text-sm text-slate-500 break-words">{order.address ? `${order.address.street}` : '—'}</td>
                     <td className="py-3 px-2 text-sm text-slate-500">{order.address?.postalCode || '—'}</td>
                     <td className="py-3 px-2 text-sm text-slate-500">{order.userProfile?.country || '—'}</td>
                     <td className="py-3 px-2 text-sm text-slate-500 font-medium whitespace-nowrap">{new Date(order.createdAt).toLocaleTimeString()}</td>
@@ -196,7 +181,7 @@ export default function Dashboard() {
                         <div className="flex-1 bg-slate-200 rounded-full h-2 overflow-hidden shadow-inner">
                           <div
                             className={`h-full rounded-full ${riskScore >= 1 ? 'bg-yellow-500' : 'bg-green-500'}`}
-                            style={{ width: `${Math.min((riskScore / 30) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((riskScore / 40) * 100, 100)}%` }}
                           ></div>
                         </div>
                         <span className={`text-sm font-bold shrink-0 ${riskScore >= 1 ? 'text-yellow-600' : 'text-green-600'}`}>
@@ -282,65 +267,136 @@ export default function Dashboard() {
             <div className="p-6 overflow-y-auto">
 
               {/* --- RISK ANALYSIS TAB --- */}
-              {modalTab === "risk" && (
-                <>
-                  <div className="mb-6 p-4 rounded-xl border border-blue-300 bg-blue-100">
-                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-2">AI Summary</h3>
-                    <p className="text-slate-800 text-lg leading-relaxed font-medium">
-                      {selectedOrder.riskAssessment?.summary || "No summary available."}
-                    </p>
-                  </div>
+              {modalTab === "risk" && (() => {
+                const riskScore = selectedOrder.riskAssessment?.riskScore || 0;
+                const recommended = selectedOrder.riskAssessment?.recommendedAction || 'N/A';
+                const allFlags = selectedOrder.riskAssessment?.riskFlags || [];
+                const triggeredFlags = allFlags.filter((f: any) => f.triggered);
+                const passedFlags = allFlags.filter((f: any) => !f.triggered);
+                const scorePercent = Math.min((riskScore / 40) * 100, 100);
+                const isRisky = riskScore >= 1;
 
-                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Risk Rules Analysis</h3>
-
-                  <div className="space-y-4">
-                    {/* Triggered (Failed) Rules */}
-                    <div className="space-y-3">
-                      {selectedOrder.riskAssessment?.riskFlags?.filter((flag: any) => flag.triggered).length > 0 ? (
-                        selectedOrder.riskAssessment?.riskFlags?.filter((flag: any) => flag.triggered).map((flag: any, index: number) => (
-                          <div key={`triggered-${index}`} className="flex gap-4 p-4 rounded-xl border border-red-300 bg-red-100">
-                            <div className="text-red-800 mt-1">
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                              </svg>
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-slate-800 text-sm mb-1">{flag.ruleName}</h4>
-                              <p className="text-sm text-slate-600 leading-relaxed font-medium">{flag.explanation}</p>
-                            </div>
+                return (
+                  <>
+                    {/* Risk Score Overview */}
+                    <div className={`mb-5 p-5 rounded-xl border-2 ${isRisky ? 'border-yellow-400 bg-gradient-to-r from-yellow-50 to-orange-50' : 'border-green-400 bg-gradient-to-r from-green-50 to-emerald-50'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Risk Score</h3>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className={`text-4xl font-black ${isRisky ? 'text-yellow-600' : 'text-green-600'}`}>{riskScore}</span>
+                            <span className="text-lg text-slate-400 font-medium">/ 40</span>
                           </div>
-                        ))
-                      ) : (
-                        <div className="p-4 rounded-xl border border-green-300 bg-green-100 text-green-800 font-medium text-center">
-                          No risk flags triggered. This order appears extremely safe.
                         </div>
-                      )}
+                        <div className="text-right">
+                          <span className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold border-2 shadow-sm ${isRisky ? 'bg-yellow-400 text-yellow-900 border-yellow-500' : 'bg-green-400 text-green-900 border-green-500'}`}>
+                            {recommended === 'manual_review' ? '⚠️ Manual Review' : '✅ Ship'}
+                          </span>
+                          <p className="text-xs text-slate-400 mt-1.5 font-medium">
+                            {isRisky ? 'Chances of Risk Delivery' : 'No Risk Detected'}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Score Progress Bar */}
+                      <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden shadow-inner">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${riskScore >= 20 ? 'bg-red-500' : isRisky ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          style={{ width: `${scorePercent}%` }}
+                        />
+                      </div>
+                      {/* Rule Stats */}
+                      <div className="flex gap-4 mt-3">
+                        <span className="text-xs font-bold text-red-600 bg-red-100 px-2.5 py-1 rounded-full border border-red-200">
+                          {triggeredFlags.length} Triggered
+                        </span>
+                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2.5 py-1 rounded-full border border-green-200">
+                          {passedFlags.length} Passed
+                        </span>
+                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                          {allFlags.length} Total Rules
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Passed Rules */}
-                    {selectedOrder.riskAssessment?.riskFlags?.filter((flag: any) => !flag.triggered).length > 0 && (
-                      <div className="pt-2 border-t border-slate-200">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 mt-2">Passed Checks</h4>
-                        <div className="space-y-3">
-                          {selectedOrder.riskAssessment?.riskFlags?.filter((flag: any) => !flag.triggered).map((flag: any, index: number) => (
-                            <div key={`passed-${index}`} className="flex gap-4 p-4 rounded-xl border border-green-200 bg-green-100">
-                              <div className="text-green-800 mt-1">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                    {/* AI Summary */}
+                    <div className="mb-5 p-4 rounded-xl border border-blue-300 bg-blue-50">
+                      <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1.5">AI Summary</h3>
+                      <p className="text-slate-800 text-sm leading-relaxed font-medium">
+                        {selectedOrder.riskAssessment?.summary || "No summary available."}
+                      </p>
+                    </div>
+
+                    {/* Triggered Rules */}
+                    {triggeredFlags.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="text-xs font-bold text-red-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>⚠️ Triggered Rules</span>
+                          <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full border border-red-200">+{triggeredFlags.length * 5} pts</span>
+                        </h4>
+                        <div className="space-y-2.5">
+                          {triggeredFlags.map((flag: any, index: number) => (
+                            <div key={`triggered-${index}`} className="flex gap-3 p-3.5 rounded-xl border border-red-300 bg-red-50">
+                              <div className="flex flex-col items-center gap-1 shrink-0">
+                                <div className="text-red-600 bg-red-200 rounded-full p-1">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                  </svg>
+                                </div>
+                                <span className="text-[10px] font-black text-red-500">+5</span>
                               </div>
-                              <div>
-                                <h4 className="font-bold text-slate-800 text-sm mb-1">{flag.ruleName}</h4>
-                                <p className="text-sm text-slate-500 leading-relaxed font-medium">{flag.explanation}</p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-[10px] font-bold text-red-400 bg-red-100 px-1.5 py-0.5 rounded">#{flag.ruleId || index + 1}</span>
+                                  <h4 className="font-bold text-slate-800 text-sm">{flag.ruleName}</h4>
+                                </div>
+                                <p className="text-sm text-slate-600 leading-relaxed">{flag.explanation}</p>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-                  </div>
-                </>
-              )}
+
+                    {/* No Risks Message */}
+                    {triggeredFlags.length === 0 && (
+                      <div className="mb-4 p-4 rounded-xl border-2 border-green-300 bg-green-50 text-center">
+                        <p className="text-green-700 font-bold text-lg">🎉 No risk flags triggered!</p>
+                        <p className="text-green-600 text-sm mt-1">This order appears extremely safe.</p>
+                      </div>
+                    )}
+
+                    {/* Passed Rules */}
+                    {passedFlags.length > 0 && (
+                      <div className="pt-3 border-t border-slate-200">
+                        <h4 className="text-xs font-bold text-green-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <span>✅ Passed Checks</span>
+                          <span className="text-[10px] bg-green-100 text-green-600 px-2 py-0.5 rounded-full border border-green-200">{passedFlags.length} rules</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {passedFlags.map((flag: any, index: number) => (
+                            <div key={`passed-${index}`} className="flex gap-3 p-3 rounded-xl border border-green-200 bg-green-50/50">
+                              <div className="shrink-0">
+                                <div className="text-green-600 bg-green-200 rounded-full p-1">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                </div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <span className="text-[10px] font-bold text-green-400 bg-green-100 px-1.5 py-0.5 rounded">#{flag.ruleId || index + 1}</span>
+                                  <h4 className="font-bold text-slate-700 text-sm">{flag.ruleName}</h4>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed">{flag.explanation}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* --- CUSTOMER HISTORY TAB --- */}
               {modalTab === "history" && (
@@ -402,7 +458,7 @@ export default function Dashboard() {
                                     <p className="text-xs text-slate-500">{new Date(histOrder.createdAt).toLocaleString()}</p>
                                     {histOrder.address && (
                                       <p className="text-xs text-slate-400 mt-1">
-                                        {histOrder.address.street}, {histOrder.address.city}, {histOrder.address.postalCode}
+                                        {histOrder.address.street}, {histOrder.address.postalCode}
                                       </p>
                                     )}
                                   </div>

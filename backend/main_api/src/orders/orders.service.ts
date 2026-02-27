@@ -214,6 +214,8 @@ export class OrdersService {
                 6: 5,   // Duplicate Email — Different Identity
                 7: 5,   // Duplicate Phone — Different Identity
                 8: 5,   // City Name Mismatch
+                9: 5,   // Phone Number VS Country Name
+                10: 5,  // Delivery Address Details (Geocoding)
             };
 
             const computedScore = (riskData.risk_flags as any[])
@@ -227,7 +229,7 @@ export class OrdersService {
                 );
             }
 
-            const riskScore = Math.min(computedScore, 30);
+            const riskScore = Math.min(computedScore, 40);
             let enforcedAction: string;
             if (riskScore >= 1) {
                 enforcedAction = 'manual_review';
@@ -243,7 +245,7 @@ export class OrdersService {
 
             // Fallback: If it didn't specifically say "risk score of X", just prepend the real score to avoid confusion
             if (!syncedSummary.includes(`score of ${riskScore}`) && !syncedSummary.includes(`score is ${riskScore}`)) {
-                syncedSummary = `(Score: ${riskScore}/30) ${syncedSummary}`;
+                syncedSummary = `(Score: ${riskScore}/40) ${syncedSummary}`;
             }
 
             // Create Risk Assessment with enforced action and synced summary
