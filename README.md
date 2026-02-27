@@ -113,20 +113,54 @@ npm run dev
 
 ---
 
-## 📉 Risk Scoring Rules
+## 📈 Risk Scoring & Decision Logic
 
-| # | Rule Name | Description | Points |
-|---|---|---|---|
-| 1 | Contact Specificity | Uniqueness of email and phone. | +0 |
-| 2 | City Verification | Validates city name via LLM. | +0 |
-| 3 | Hurry Order | Checks for rapid successive orders. | +5 |
-| 4 | Address Reuse | Different names using the same address. | +5 |
-| 5 | Postal Validation | API-based ZIP code verification. | +5 |
-| 6 | Email Mismatch | Same email used for different identities. | +5 |
-| 7 | Phone Mismatch | Same phone used for different identities. | +5 |
-| 8 | City Conflict | Conflicts between city field and address. | +5 |
-| 9 | Country Match | Phone country code matches selected country. | +5 |
-| 10 | Address Logic | LLM verification of address sanity. | +5 |
+RiskGuard uses a deterministic scoring model combined with AI-powered checks to evaluate order safety.
+
+### ⚖️ Scoring Tiers
+Every order is assigned a final **Risk Score** between **0 and 40**, which dictates the system's recommendation:
+
+*   **0 Points** → ✅ **Ship (No Risk)**: The order passed all penalty checks. Automated fulfillment is recommended.
+*   **1–40 Points** → ⚠️ **Manual Review**: One or more risk factors were detected. Human intervention is required to verify the customer's intent.
+
+---
+
+### 🔍 How Points are Allocated
+
+The engine evaluates **10 distinct rules**. These are categorized into **Informational Checks** and **Penalty Rules**.
+
+#### 1. Informational Checks (0 Points)
+These rules are used to gather context or verify basic data points. They **never** increase the risk score, even if they fail.
+*   **Rule #1: Contact Specificity** — Ensures the email and phone are unique to this transaction.
+*   **Rule #2: City Verification** — AI confirms the city exists within the stated country.
+
+#### 2. Penalty Rules (+5 Points Each)
+These rules represent specific fraud indicators. Every time a penalty rule is triggered, **exactly 5 points** are added to the total score.
+*   **Rule #3: Hurry Order** — Flags rapid-fire orders (e.g., 3 orders in 10 minutes) from the same email.
+*   **Rule #4: Address Reuse** — Flags when multiple different names use the exact same delivery address.
+*   **Rule #5: Postal Validation** — Checks if the ZIP/Postal code actually matches the City/State via ZipcodeStack API.
+*   **Rule #6: Email Identity Mismatch** — Flags if an email associated with "John Doe" is suddenly used by "Jane Smith".
+*   **Rule #7: Phone Identity Mismatch** — Flags if a phone number is shared across unrelated user accounts.
+*   **Rule #8: City/Address Conflict** — Flags when the 'City' field doesn't match the city mentioned in the 'Street Address'.
+*   **Rule #9: Phone/Country Mismatch** — Validates that the phone's country code (e.g., +44) matches the shipping country (e.g., United Kingdom).
+*   **Rule #10: AI Address Logic** — Llama 3.1 analyzes the address string to detect "fake" or "keyboard mash" addresses (e.g., "asdf 123 lane").
+
+---
+
+### 📊 Rule Summary Table
+
+| # | Rule Name | Category | Points | Trigger Condition |
+|---|---|---|---|---|
+| 1 | Contact Specificity | Informational | +0 | Always 0 (Data collection) |
+| 2 | City Verification | Informational | +0 | Always 0 (Data collection) |
+| 3 | Hurry Order | Penalty | **+5** | >2 orders/day or <10m gap |
+| 4 | Address Reuse | Penalty | **+5** | Same address, Different Name |
+| 5 | Postal Validation | Penalty | **+5** | ZIP/City mismatch |
+| 6 | Email Mismatch | Penalty | **+5** | Same Email, Different Identity |
+| 7 | Phone Mismatch | Penalty | **+5** | Same Phone, Different Identity |
+| 8 | City Conflict | Penalty | **+5** | City field != Address content |
+| 9 | Country Match | Penalty | **+5** | Phone CC != Country Selection |
+| 10 | Address Logic | Penalty | **+5** | AI detects nonsense address |
 
 ---
 
