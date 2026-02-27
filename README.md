@@ -111,6 +111,26 @@ npm install
 npm run dev
 ```
 
+## 🖥️ Visual Overview
+
+### 📊 Main Dashboard
+The dashboard provides a real-time feed of incoming orders, their risk scores, and the engine's recommendation.
+
+![RiskGuard Dashboard](assets/dashboard_screenshot.png)
+
+*   **Order Feed**: View real-time data including customer details, addresses, and risk scores.
+*   **Quick Analytics**: Instant overview of total processed orders, automated ships, and manual review triggers.
+*   **Status Indicators**: Color-coded badges (Green for Ship, Amber for Manual Review) for rapid decision-making.
+
+### 📉 Graph Analysis
+Visualize risk trends and system performance over time.
+
+![Graph Analysis](assets/graph_analysis_screenshot.png)
+
+*   **Risk Distribution**: A bird's-eye view of your storefront's safety profile.
+*   **Historical Trends**: Track how risk factors evolve day-to-day.
+*   **Performance Metrics**: Monitor the balance between automated actions and manual intervention.
+
 ---
 
 ## 📈 Risk Scoring & Decision Logic
