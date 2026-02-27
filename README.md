@@ -121,6 +121,8 @@ The dashboard provides a real-time feed of incoming orders, their risk scores, a
 *   **Order Feed**: View real-time data including customer details, addresses, and risk scores.
 *   **Quick Analytics**: Instant overview of total processed orders, automated ships, and manual review triggers.
 *   **Status Indicators**: Color-coded badges (Green for Ship, Amber for Manual Review) for rapid decision-making.
+<img width="1811" height="985" alt="Screenshot from 2026-02-27 16-40-31" src="https://github.com/user-attachments/assets/1cd0b9ca-6c2c-4147-8baf-f7ab4b096f98" />
+
 
 ### 📉 Graph Analysis
 Visualize risk trends and system performance over time.
@@ -130,6 +132,7 @@ Visualize risk trends and system performance over time.
 *   **Risk Distribution**: A bird's-eye view of your storefront's safety profile.
 *   **Historical Trends**: Track how risk factors evolve day-to-day.
 *   **Performance Metrics**: Monitor the balance between automated actions and manual intervention.
+<img width="1811" height="985" alt="Screenshot from 2026-02-27 16-41-42" src="https://github.com/user-attachments/assets/6600c2e6-6141-4473-9000-f57cebbc69c2" />
 
 ---
 
